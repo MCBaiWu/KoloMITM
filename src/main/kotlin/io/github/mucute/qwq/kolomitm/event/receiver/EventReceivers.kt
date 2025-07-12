@@ -1,0 +1,407 @@
+package io.github.mucute.qwq.kolomitm.event.receiver
+
+import com.fasterxml.jackson.databind.DeserializationFeature
+import com.fasterxml.jackson.databind.JsonNode
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.node.JsonNodeType
+import com.google.gson.JsonParser
+import io.github.mucute.qwq.kolomitm.definition.CameraPresetDefinition
+import io.github.mucute.qwq.kolomitm.definition.DataEntry
+import io.github.mucute.qwq.kolomitm.definition.Definitions
+import io.github.mucute.qwq.kolomitm.session.EventUnregister
+import io.github.mucute.qwq.kolomitm.session.KoloSession
+import io.github.mucute.qwq.kolomitm.util.AutoCodec
+import io.github.mucute.qwq.kolomitm.util.ForgeryUtils
+import io.github.mucute.qwq.kolomitm.util.command
+import io.github.mucute.qwq.kolomitm.util.mismatch
+import io.github.mucute.qwq.kolomitm.util.packet
+import io.github.mucute.qwq.kolomitm.util.verifyJwt
+import org.cloudburstmc.nbt.NbtMap
+import org.cloudburstmc.protocol.bedrock.codec.v729.serializer.InventoryContentSerializer_v729
+import org.cloudburstmc.protocol.bedrock.codec.v729.serializer.InventorySlotSerializer_v729
+import org.cloudburstmc.protocol.bedrock.data.EncodingSettings
+import org.cloudburstmc.protocol.bedrock.data.PacketCompressionAlgorithm
+import org.cloudburstmc.protocol.bedrock.data.auth.AuthType
+import org.cloudburstmc.protocol.bedrock.data.auth.CertificateChainPayload
+import org.cloudburstmc.protocol.bedrock.data.definitions.ItemDefinition
+import org.cloudburstmc.protocol.bedrock.data.definitions.SimpleItemDefinition
+import org.cloudburstmc.protocol.bedrock.packet.*
+import org.cloudburstmc.protocol.bedrock.util.EncryptionUtils
+import org.cloudburstmc.protocol.bedrock.util.JsonUtils
+import org.cloudburstmc.protocol.common.NamedDefinition
+import org.cloudburstmc.protocol.common.SimpleDefinitionRegistry
+import org.jose4j.json.JsonUtil
+import org.jose4j.json.internal.json_simple.JSONArray
+import org.jose4j.json.internal.json_simple.JSONObject
+import org.jose4j.jws.JsonWebSignature
+import org.jose4j.jwx.HeaderParameterNames
+import java.net.InetAddress
+import java.net.InetSocketAddress
+import java.security.KeyPair
+import java.util.*
+
+private val UnlimitedEncodingSettings = EncodingSettings.UNLIMITED
+
+private val JsonMapper = ObjectMapper()
+    .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+
+
+fun KoloSession.proxyPassReceiver(
+    autoCodec: Boolean = true,
+    patchCodec: Boolean = true
+): EventUnregister {
+    var keyPair: KeyPair? = null
+    var loginPacket: LoginPacket? = null
+
+    return packet<BedrockPacket> { packetEvent, _ ->
+        val packet = packetEvent.packet
+        if (packet is RequestNetworkSettingsPacket) {
+            packetEvent.consume()
+
+            val protocolVersion = packet.protocolVersion
+            val targetCodec = if (autoCodec) {
+                AutoCodec.findBedrockCodec(protocolVersion, koloMITM.codec)
+            } else {
+                koloMITM.codec
+            }
+            val helper = targetCodec.createHelper().apply {
+                encodingSettings = UnlimitedEncodingSettings
+            }
+
+            if (protocolVersion != targetCodec.protocolVersion) {
+                val status = PlayStatusPacket()
+                status.status = if (protocolVersion > targetCodec.protocolVersion) {
+                    PlayStatusPacket.Status.LOGIN_FAILED_SERVER_OLD
+                } else {
+                    PlayStatusPacket.Status.LOGIN_FAILED_CLIENT_OLD
+                }
+
+                inboundImmediately(status)
+                return@packet
+            }
+
+            koloMITM.codec = targetCodec.toBuilder()
+                .helper { helper }
+                .also {
+                    if (patchCodec && protocolVersion > 729) {
+                        it.updateSerializer(
+                            InventoryContentPacket::class.java,
+                            InventoryContentSerializer_v729.INSTANCE
+                        )
+                        it.updateSerializer(
+                            InventorySlotPacket::class.java,
+                            InventorySlotSerializer_v729.INSTANCE
+                        )
+                    }
+                }
+                .build()
+
+            val networkSettingsPacket = NetworkSettingsPacket()
+            networkSettingsPacket.compressionThreshold = 0
+            networkSettingsPacket.compressionAlgorithm = PacketCompressionAlgorithm.ZLIB
+
+            inboundImmediately(networkSettingsPacket)
+            inboundSession?.setCompression(PacketCompressionAlgorithm.ZLIB)
+        }
+        if (packet is LoginPacket) {
+            packetEvent.consume()
+
+            runCatching {
+                val chain = EncryptionUtils.validatePayload(packet.authPayload)
+
+                val payload = JsonMapper.valueToTree<JsonNode>(chain.rawIdentityClaims())
+
+                if (payload["extraData"].nodeType != JsonNodeType.OBJECT) {
+                    throw RuntimeException("AuthData was not found!")
+                }
+
+                val extraDataJSONObject = JSONObject(
+                    JsonUtils.childAsType(
+                        chain.rawIdentityClaims(), "extraData",
+                        Map::class.java
+                    )
+                )
+
+                if (payload["identityPublicKey"].nodeType != JsonNodeType.STRING) {
+                    throw RuntimeException("Identity Public Key was not found!")
+                }
+                val identityPublicKey = EncryptionUtils.parseKey(payload["identityPublicKey"].textValue())
+
+                val clientJwt = packet.clientJwt
+                verifyJwt(clientJwt, identityPublicKey)
+
+                val jws = JsonWebSignature()
+                jws.compactSerialization = clientJwt
+
+                val skinDataJSONObject = JSONObject(JsonUtil.parseJson(jws.unverifiedPayload))
+
+
+                val account = koloMITM.account
+                if (account == null) {
+                    val chainData = (packet.authPayload as CertificateChainPayload).chain
+                    keyPair = EncryptionUtils.createKeyPair()
+
+                    val authData = ForgeryUtils.forgeOfflineAuthData(keyPair!!, extraDataJSONObject)
+                    val skinData = ForgeryUtils.forgeOfflineSkinData(keyPair!!, skinDataJSONObject)
+
+                    chainData.removeAt(chainData.size - 1)
+                    chainData.add(authData)
+
+                    loginPacket = LoginPacket().apply {
+                        this.clientJwt = skinData
+                        this.authPayload = CertificateChainPayload(chainData, AuthType.FULL)
+                        this.protocolVersion = koloMITM.codec.protocolVersion
+                    }
+
+                    koloMITM.bootClient()
+                } else {
+                    val mcChain = account.mcChain
+                    keyPair = KeyPair(mcChain.publicKey, mcChain.privateKey)
+
+                    val mojangPublicKey = ForgeryUtils.forgeMojangPublicKey()
+                    val onlineLoginChain = ForgeryUtils.forgeOnlineAuthData(mcChain, mojangPublicKey)
+                    val skinData =
+                        ForgeryUtils.forgeOnlineSkinData(account, skinDataJSONObject, koloMITM.remoteAddress)
+
+                    loginPacket = LoginPacket().apply {
+                        this.clientJwt = skinData
+                        this.authPayload = CertificateChainPayload(onlineLoginChain, AuthType.FULL)
+                        this.protocolVersion = koloMITM.codec.protocolVersion
+                    }
+
+                    koloMITM.bootClient()
+                }
+            }.exceptionOrNull()?.let {
+                inbound(DisconnectPacket().apply {
+                    kickMessage = it.message.toString()
+                })
+            }
+        }
+        if (packet is NetworkSettingsPacket) {
+            packetEvent.consume()
+
+            outboundSession?.setCompression(packet.compressionAlgorithm)
+            println("Compression threshold set to ${packet.compressionThreshold}")
+
+            loginPacket?.let { outboundImmediately(it) }
+        }
+        if (packet is ServerToClientHandshakePacket) {
+            packetEvent.consume()
+
+            val jws = JsonWebSignature()
+            jws.compactSerialization = packet.jwt
+            val saltJwt = JSONObject(JsonUtil.parseJson(jws.unverifiedPayload))
+            val x5u = jws.getHeader(HeaderParameterNames.X509_URL)
+            val serverKey = EncryptionUtils.parseKey(x5u)
+            val key = EncryptionUtils.getSecretKey(
+                keyPair!!.private, serverKey,
+                Base64.getDecoder().decode(
+                    JsonUtils.childAsType(
+                        saltJwt, "salt",
+                        String::class.java
+                    )
+                )
+            )
+            outboundSession?.enableEncryption(key)
+            outboundImmediately(ClientToServerHandshakePacket())
+        }
+
+    }
+}
+
+@Suppress("DEPRECATION")
+fun KoloSession.definitionReceiver(
+    coroutineEnabled: Boolean = false
+): EventUnregister {
+    return packet<BedrockPacket> { packetEvent, _ ->
+        val packet = packetEvent.packet
+
+        if (packet is StartGamePacket) {
+            if (koloMITM.codec.protocolVersion < 776) {
+                val itemData: MutableList<DataEntry> = ArrayList<DataEntry>()
+
+                val legacyItems = LinkedHashMap<String, Int>()
+                val legacyBlocks = LinkedHashMap<String, Int>()
+
+                for (entry in packet.itemDefinitions) {
+                    if (entry.runtimeId > 255) {
+                        legacyItems.putIfAbsent(entry.identifier, entry.runtimeId)
+                    } else {
+                        var id = entry.identifier
+                        if (id.contains(":item.")) {
+                            id = id.replace(":item.", ":")
+                        }
+                        if (entry.runtimeId > 0) {
+                            legacyBlocks.putIfAbsent(id, entry.runtimeId)
+                        } else {
+                            legacyBlocks.putIfAbsent(id, 255 - entry.runtimeId)
+                        }
+                    }
+
+                    itemData.add(DataEntry(entry.identifier, entry.runtimeId, -1, false))
+                    Definitions.legacyIdMap[entry.runtimeId] = entry.identifier
+                }
+
+                Definitions.itemDefinitions = SimpleDefinitionRegistry.builder<ItemDefinition>()
+                    .addAll(packet.itemDefinitions)
+                    .add(SimpleItemDefinition("minecraft:empty", 0, false))
+                    .build()
+
+                outboundSession?.peer?.codecHelper?.itemDefinitions = Definitions.itemDefinitions
+                inboundSession?.peer?.codecHelper?.itemDefinitions = Definitions.itemDefinitions
+            }
+
+            val blockDefinitions = if (packet.isBlockNetworkIdsHashed) {
+                Definitions.blockDefinitionHashed
+            } else {
+                Definitions.blockDefinition
+            }
+
+            outboundSession?.peer?.codecHelper?.blockDefinitions = blockDefinitions
+            inboundSession?.peer?.codecHelper?.blockDefinitions = blockDefinitions
+
+            this.coroutineEnabled = coroutineEnabled
+        }
+
+        if (packet is ItemComponentPacket) {
+            val itemData = ArrayList<DataEntry>()
+
+            val root = NbtMap.builder()
+            for (item in packet.items) {
+                root.putCompound(item.identifier, item.componentData)
+                itemData.add(
+                    DataEntry(
+                        item.identifier,
+                        item.runtimeId,
+                        item.version.ordinal,
+                        item.isComponentBased
+                    )
+                )
+            }
+
+            if (koloMITM.codec.protocolVersion >= 776) {
+                val builder = SimpleDefinitionRegistry.builder<ItemDefinition>()
+                    .add(SimpleItemDefinition("minecraft:empty", 0, false))
+
+                for (entry in itemData) {
+                    Definitions.legacyIdMap[entry.id] = entry.name
+                    builder.add(SimpleItemDefinition(entry.name, entry.id, false))
+                }
+
+                Definitions.itemDefinitions = builder.build()
+
+                outboundSession?.peer?.codecHelper?.itemDefinitions = Definitions.itemDefinitions
+                inboundSession?.peer?.codecHelper?.itemDefinitions = Definitions.itemDefinitions
+            }
+
+        }
+
+        if (packet is CameraPresetsPacket) {
+            Definitions.cameraDefinitions =
+                SimpleDefinitionRegistry.builder<NamedDefinition>()
+                    .addAll(List(packet.presets.size) {
+                        CameraPresetDefinition.fromCameraPreset(packet.presets[it], it)
+                    })
+                    .build()
+            outboundSession?.peer?.codecHelper?.cameraPresetDefinitions = Definitions.cameraDefinitions
+            inboundSession?.peer?.codecHelper?.cameraPresetDefinitions = Definitions.cameraDefinitions
+        }
+    }
+}
+
+fun KoloSession.transferReceiver(): EventUnregister {
+    return packet<TransferPacket> { packetEvent, _ ->
+        packetEvent.consume()
+
+        val packet = packetEvent.packet
+
+        koloMITM.remoteAddress = InetSocketAddress(packet.address, packet.port)
+
+        // Redirect to itself
+        inboundImmediately(TransferPacket().apply {
+            address = InetAddress.getLocalHost().hostAddress
+            port = koloMITM.localAddress.port
+        })
+    }
+}
+
+fun KoloSession.transferCommandReceiver(): Pair<EventUnregister, EventUnregister> {
+    return command(
+        "transfer",
+        "Transfer to another server",
+        handler = {
+            when (it.size) {
+                1 -> {
+                    val remoteAddress = InetSocketAddress(it[0], 19132)
+                    koloMITM.remoteAddress = remoteAddress
+
+                    // Redirect to itself
+                    inboundImmediately(TransferPacket().apply {
+                        this.address = InetAddress.getLocalHost().hostAddress
+                        this.port = koloMITM.localAddress.port
+                    })
+                }
+
+                2 -> {
+                    val remoteAddress = InetSocketAddress(it[0], it[1].toInt())
+                    koloMITM.remoteAddress = remoteAddress
+
+                    // Redirect to itself
+                    inboundImmediately(TransferPacket().apply {
+                        this.address = InetAddress.getLocalHost().hostAddress
+                        this.port = koloMITM.localAddress.port
+                    })
+                }
+
+                else -> mismatch()
+            }
+        },
+        arrayOf("[ip: string]", "[port: int]"),
+        arrayOf("[ip: string]")
+    )
+}
+
+fun KoloSession.echoCommandReceiver(): Pair<EventUnregister, EventUnregister> {
+    return command(
+        "echo",
+        "Print a raw text in console",
+        handler = {
+            when (it.size) {
+                0 -> mismatch()
+                else -> {
+                    inbound(TextPacket().apply {
+                        type = TextPacket.Type.RAW
+                        isNeedsTranslation = false
+                        sourceName = ""
+                        message = it.joinToString(separator = " ")
+                        xuid = ""
+                    })
+                }
+            }
+        },
+        arrayOf("[messages: any]...")
+    )
+}
+
+fun KoloSession.autoLoginWaiGameReceiver(password: String): EventUnregister {
+    return packet<BedrockPacket> { packetEvent, _ ->
+        val packet = packetEvent.packet
+
+        if (packet is ModalFormRequestPacket) {
+            val jsonObject = JsonParser.parseString(packet.formData).asJsonObject
+            if (jsonObject["title"]?.isJsonPrimitive == true) {
+                val title = jsonObject["title"].asJsonPrimitive
+                if (title.isString && title.asString == "登录") {
+                    packetEvent.consume()
+
+                    val modalFormResponsePacket = ModalFormResponsePacket().apply {
+                        formId = packet.formId
+                        formData = JSONArray(listOf(password)).toJSONString()
+                        cancelReason = Optional.empty()
+                    }
+                    outbound(modalFormResponsePacket)
+                }
+            }
+        }
+    }
+}
