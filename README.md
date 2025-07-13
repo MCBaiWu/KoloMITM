@@ -32,6 +32,26 @@ To build a jar file, run `./gradlew build` in the root directory. This will prod
 
 If you wonder to run the project from source, run `./gradlew run` in the project root directory.
 
+### Reference
+You can use KoloMITM in custom projects. Just clone this project and run `./gradlew publishMavenPublicationToMavenLocal` command. Then change build.gradle.kts with:
+
+```kotlin
+repositories {
+    // ... (Your other maven resolutions)
+    mavenLocal()
+    maven { url = uri("https://repo.opencollab.dev/maven-snapshots") }
+    maven { url = uri("https://repo.opencollab.dev/maven-releases") }
+}
+```
+
+Finally, include KoloMITM on your custom project:
+```kotlin
+dependencies {
+    // ... (Your other dependencies)
+    implementation("io.github.mucute.qwq.kolomitm:KoloMITM:1.0-SNAPSHOT")
+}
+```
+
 ### Acknowledgements
 [Protocol](https://github.com/CloudburstMC/Protocol.git)
 | [Network](https://github.com/CloudburstMC/Network.git)
