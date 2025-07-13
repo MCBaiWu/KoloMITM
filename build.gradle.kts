@@ -1,6 +1,7 @@
 plugins {
     id("java-library")
     id("application")
+    id("com.gradleup.shadow") version "9.0.0-rc1"
     kotlin("jvm") version "2.2.0"
 }
 
@@ -10,6 +11,14 @@ version = "1.0-SNAPSHOT"
 application {
     applicationName = "KoloMITM"
     mainClass = "io.github.mucute.qwq.kolomitm.KoloMITM"
+}
+
+tasks.jar {
+    manifest {
+        attributes(
+            "Main-Class" to "io.github.mucute.qwq.kolomitm.KoloMITM"
+        )
+    }
 }
 
 repositories {
