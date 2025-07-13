@@ -46,6 +46,7 @@ jobs:
       with:
         java-version: '21'
         distribution: 'graalvm'
+        gradle-version: '8.13'
 
     - name: Generate and submit dependency graph
       uses: gradle/actions/dependency-submission@v4
