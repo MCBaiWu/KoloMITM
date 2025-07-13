@@ -97,7 +97,7 @@ fun KoloSession.proxyPassReceiver(
                 .build()
 
             val networkSettingsPacket = NetworkSettingsPacket()
-            networkSettingsPacket.compressionThreshold = 0
+            networkSettingsPacket.compressionThreshold = 65535
             networkSettingsPacket.compressionAlgorithm = PacketCompressionAlgorithm.ZLIB
 
             inboundImmediately(networkSettingsPacket)

@@ -1,10 +1,16 @@
 plugins {
     id("java-library")
+    id("application")
     kotlin("jvm") version "2.2.0"
 }
 
 group = "io.github.mucute.qwq.kolomitm"
 version = "1.0-SNAPSHOT"
+
+application {
+    applicationName = "KoloMITM"
+    mainClass = "io.github.mucute.qwq.kolomitm.KoloMITM"
+}
 
 repositories {
     mavenCentral()
