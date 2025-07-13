@@ -1,4 +1,7 @@
+import org.gradle.kotlin.dsl.register
+
 plugins {
+    `maven-publish`
     id("java-library")
     id("application")
     id("com.gradleup.shadow") version "9.0.0-rc1"
@@ -21,6 +24,13 @@ tasks.jar {
     }
 }
 
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(21))
+    }
+    withSourcesJar()
+}
+
 repositories {
     mavenCentral()
     maven {
@@ -33,18 +43,71 @@ repositories {
     }
 }
 
+publishing {
+    publications {
+        create<MavenPublication>("maven") {
+            from(components["java"])
+            pom {
+                packaging = "jar"
+                url.set("https://github.com/mucute-qwq/KoloMITM")
+
+                scm {
+                    connection.set("scm:git:git://github.com/mucute-qwq/KoloMITM.git")
+                    developerConnection.set("scm:git:ssh://github.com/mucute-qwq/KoloMITM.git")
+                    url.set("https://github.com/mucute-qwq/KoloMITM")
+                }
+
+                licenses {
+                    license {
+                        name.set("The Apache Software License, Version 2.0")
+                        url.set("https://www.apache.org/licenses/LICENSE-2.0.txt")
+                    }
+                }
+
+                developers {
+                    developer {
+                        name.set("mucute-qwq")
+                    }
+                }
+
+                ciManagement {
+                    system.set("GitHub Actions")
+                    url.set("https://github.com/mucute-qwq/KoloMITM/actions")
+                }
+
+                issueManagement {
+                    system.set("GitHub Issues")
+                    url.set("https://github.com/mucute-qwq/KoloMITM/issues")
+                }
+            }
+        }
+    }
+}
+
+val networkIncludedBuild = gradle.includedBuild("network")
+val protocolIncludedBuild = gradle.includedBuild("protocol")
+
+tasks["publishMavenPublicationToMavenLocal"].dependsOn(
+    networkIncludedBuild.task(":codec-query:publishMavenPublicationToMavenLocal"),
+    networkIncludedBuild.task(":codec-rcon:publishMavenPublicationToMavenLocal"),
+    networkIncludedBuild.task(":transport-raknet:publishMavenPublicationToMavenLocal"),
+    protocolIncludedBuild.task(":bedrock-codec:publishMavenPublicationToMavenLocal"),
+    protocolIncludedBuild.task(":common:publishMavenPublicationToMavenLocal"),
+    protocolIncludedBuild.task(":bedrock-connection:publishMavenPublicationToMavenLocal")
+)
+
 dependencies {
-    implementation(libs.bedrock.codec)
-    implementation(libs.common)
-    implementation(libs.bedrock.connection)
-    implementation(libs.transport.raknet)
-    implementation(libs.kotlinx.coroutines)
-    implementation(libs.net.raphimc.minecraftauth)
-    implementation(libs.jackson.databind)
-    implementation(platform(libs.log4j.bom))
-    implementation(libs.log4j.api)
-    implementation(libs.log4j.core)
-    testImplementation(kotlin("test"))
+    api(libs.bedrock.codec)
+    api(libs.common)
+    api(libs.bedrock.connection)
+    api(libs.transport.raknet)
+    api(libs.kotlinx.coroutines)
+    api(libs.net.raphimc.minecraftauth)
+    api(libs.jackson.databind)
+    api(platform(libs.log4j.bom))
+    api(libs.log4j.api)
+    api(libs.log4j.core)
+    testApi(kotlin("test"))
 }
 
 tasks.test {
