@@ -6,13 +6,7 @@ import io.github.mucute.qwq.kolomitm.event.KoloEvent
 import io.github.mucute.qwq.kolomitm.event.PacketEvent
 import io.github.mucute.qwq.kolomitm.packet.PacketDirection
 import io.netty.util.ReferenceCountUtil
-import kotlinx.coroutines.CoroutineName
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 import org.cloudburstmc.protocol.bedrock.BedrockClientSession
 import org.cloudburstmc.protocol.bedrock.BedrockPeer
 import org.cloudburstmc.protocol.bedrock.BedrockServerSession
@@ -21,6 +15,7 @@ import org.cloudburstmc.protocol.bedrock.netty.BedrockPacketWrapper
 import org.cloudburstmc.protocol.bedrock.packet.BedrockPacket
 import org.cloudburstmc.protocol.bedrock.packet.BedrockPacketHandler
 import java.util.*
+import java.util.Queue
 import java.util.concurrent.CopyOnWriteArrayList
 
 typealias EventUnregister = () -> Unit

@@ -1,6 +1,6 @@
 package io.github.mucute.qwq.kolomitm.util
 
-class Trigger <T>(
+class Trigger<T>(
     initialValue: T
 ) {
 

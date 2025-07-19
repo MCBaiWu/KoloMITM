@@ -19,7 +19,6 @@ import org.cloudburstmc.netty.handler.codec.raknet.server.RakServerRateLimiter
 import org.cloudburstmc.protocol.bedrock.BedrockPeer
 import org.cloudburstmc.protocol.bedrock.BedrockPong
 import org.cloudburstmc.protocol.bedrock.codec.BedrockCodec
-import org.cloudburstmc.protocol.bedrock.codec.v819.Bedrock_v819
 import org.cloudburstmc.protocol.bedrock.codec.v827.Bedrock_v827
 import org.cloudburstmc.protocol.bedrock.netty.initializer.BedrockChannelInitializer
 import org.cloudburstmc.protocol.bedrock.packet.RequestNetworkSettingsPacket

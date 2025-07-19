@@ -8,7 +8,8 @@ import org.cloudburstmc.protocol.bedrock.data.definitions.BlockDefinition
 import org.cloudburstmc.protocol.common.DefinitionRegistry
 
 
-class NbtBlockDefinitionRegistry(definitions: MutableList<NbtMap>, hashed: Boolean) : DefinitionRegistry<BlockDefinition> {
+class NbtBlockDefinitionRegistry(definitions: MutableList<NbtMap>, hashed: Boolean) :
+    DefinitionRegistry<BlockDefinition> {
 
     private val definitions: Int2ObjectMap<NbtBlockDefinition?> = Int2ObjectOpenHashMap<NbtBlockDefinition?>()
 
