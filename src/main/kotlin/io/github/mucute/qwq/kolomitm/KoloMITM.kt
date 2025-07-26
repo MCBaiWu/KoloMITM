@@ -114,7 +114,7 @@ class KoloMITM {
             })
             .localAddress(localAddress)
             .bind()
-            .awaitUninterruptibly()
+            .syncUninterruptibly()
             .channel()
             .also { it.pipeline().remove(RakServerRateLimiter::class.java) }
     }
@@ -146,8 +146,13 @@ class KoloMITM {
             })
             .remoteAddress(inetSocketAddress)
             .connect()
-            .awaitUninterruptibly()
+            .syncUninterruptibly()
             .channel()
+    }
+
+    fun disconnect() {
+        serverChannel?.close()?.syncUninterruptibly()
+        clientChannel?.close()?.syncUninterruptibly()
     }
 
 }
