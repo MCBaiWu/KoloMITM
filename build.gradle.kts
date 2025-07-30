@@ -2,7 +2,7 @@ plugins {
     `maven-publish`
     id("java-library")
     id("application")
-    id("com.gradleup.shadow") version "9.0.0-rc1"
+    id("com.gradleup.shadow") version "9.0.0-rc2"
     kotlin("jvm") version "2.2.0"
 }
 
