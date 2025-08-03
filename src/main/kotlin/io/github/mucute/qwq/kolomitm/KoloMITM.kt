@@ -50,7 +50,7 @@ class KoloMITM {
 
     var serverEventLoopGroup: EventLoopGroup = NioEventLoopGroup()
 
-    var clientEventLoopGroup: EventLoopGroup = NioEventLoopGroup()
+    var clientEventLoopGroup: EventLoopGroup = serverEventLoopGroup
 
     var serverChannel: Channel? = null
 
@@ -101,10 +101,6 @@ class KoloMITM {
             .channelFactory(RakChannelFactory.server(NioDatagramChannel::class.java))
             .option(RakChannelOption.RAK_ADVERTISEMENT, advertisement.toByteBuf())
             .option(RakChannelOption.RAK_GUID, ThreadLocalRandom.current().nextLong())
-            .option(RakChannelOption.RAK_PACKET_LIMIT, Int.MAX_VALUE)
-            .option(RakChannelOption.RAK_GLOBAL_PACKET_LIMIT, Int.MAX_VALUE)
-            .option(RakChannelOption.RAK_FLUSH_INTERVAL, 5)
-            .childOption(RakChannelOption.RAK_ORDERING_CHANNELS, 1)
             .childHandler(object : BedrockChannelInitializer<KoloSession.InboundSession>() {
                 override fun createSession0(peer: BedrockPeer, subClientId: Int): KoloSession.InboundSession {
                     return koloSession.InboundSession(peer, subClientId)
@@ -128,11 +124,6 @@ class KoloMITM {
             .option(RakChannelOption.RAK_PROTOCOL_VERSION, codec.raknetProtocolVersion)
             .option(RakChannelOption.RAK_GUID, clientGUID)
             .option(RakChannelOption.RAK_REMOTE_GUID, clientGUID)
-            .option(RakChannelOption.RAK_MTU, 1492)
-            .option(RakChannelOption.RAK_MTU_SIZES, arrayOf(1492, 1200, 576))
-            .option(RakChannelOption.RAK_MAX_QUEUED_BYTES, Int.MAX_VALUE)
-            .option(RakChannelOption.RAK_FLUSH_INTERVAL, 5)
-            .option(RakChannelOption.RAK_COMPATIBILITY_MODE, true)
             .handler(object : BedrockChannelInitializer<KoloSession.OutboundSession>() {
                 override fun createSession0(peer: BedrockPeer, subClientId: Int): KoloSession.OutboundSession {
                     return koloSession.OutboundSession(peer, subClientId)
