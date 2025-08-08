@@ -43,5 +43,8 @@ bin/
 
 ### Mac OS ###
 .DS_Store
+
+### Ignored files ###
 bedrockSession.json
 waigamePassword.txt
+packs/

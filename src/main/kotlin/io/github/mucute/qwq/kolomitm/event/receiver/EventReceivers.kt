@@ -3,11 +3,16 @@ package io.github.mucute.qwq.kolomitm.event.receiver
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.module.SimpleModule
 import com.fasterxml.jackson.databind.node.JsonNodeType
 import com.google.gson.JsonParser
 import io.github.mucute.qwq.kolomitm.definition.CameraPresetDefinition
 import io.github.mucute.qwq.kolomitm.definition.DataEntry
 import io.github.mucute.qwq.kolomitm.definition.Definitions
+import io.github.mucute.qwq.kolomitm.definition.NbtBlockDefinitionRegistry
+import io.github.mucute.qwq.kolomitm.jackson.ColorDeserializer
+import io.github.mucute.qwq.kolomitm.jackson.ColorSerializer
+import io.github.mucute.qwq.kolomitm.jackson.NbtDefinitionSerializer
 import io.github.mucute.qwq.kolomitm.session.EventUnregister
 import io.github.mucute.qwq.kolomitm.session.KoloSession
 import io.github.mucute.qwq.kolomitm.util.*
@@ -25,6 +30,7 @@ import org.cloudburstmc.protocol.bedrock.util.EncryptionUtils
 import org.cloudburstmc.protocol.bedrock.util.JsonUtils
 import org.cloudburstmc.protocol.common.NamedDefinition
 import org.cloudburstmc.protocol.common.SimpleDefinitionRegistry
+import org.cloudburstmc.protocol.common.util.Color
 import org.jose4j.json.JsonUtil
 import org.jose4j.json.internal.json_simple.JSONArray
 import org.jose4j.json.internal.json_simple.JSONObject
@@ -38,6 +44,12 @@ import java.util.*
 private val UnlimitedEncodingSettings = EncodingSettings.UNLIMITED
 
 private val JsonMapper = ObjectMapper()
+    .registerModule(
+        SimpleModule("KoloMITM")
+            .addSerializer(Color::class.java, ColorSerializer())
+            .addDeserializer(Color::class.java, ColorDeserializer())
+            .addSerializer(NbtBlockDefinitionRegistry.NbtBlockDefinition::class.java, NbtDefinitionSerializer())
+    )
     .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
 
 fun KoloSession.proxyPassReceiver(
@@ -395,6 +407,27 @@ fun KoloSession.autoLoginWaiGameReceiver(password: String): EventUnregister {
                     }
                     outbound(modalFormResponsePacket)
                 }
+            }
+        }
+    }
+}
+
+fun KoloSession.packDownloaderReceiver(
+    packDownloader: PackDownloader
+): EventUnregister {
+    return packet<BedrockPacket> { packetEvent, _ ->
+        val packet = packetEvent.packet
+        if (packet is ResourcePacksInfoPacket) {
+            for (entry in packet.resourcePackInfos) {
+                packDownloader.registerPack(entry.packId, entry.cdnUrl, entry.contentKey);
+            }
+        }
+        if (packet is ResourcePackChunkDataPacket) {
+            packDownloader.addChunk(packet.packId, packet.chunkIndex, packet.data.retain());
+        }
+        if (packet is ResourcePackClientResponsePacket) {
+            if (packet.status == ResourcePackClientResponsePacket.Status.COMPLETED) {
+                packDownloader.processPacks()
             }
         }
     }

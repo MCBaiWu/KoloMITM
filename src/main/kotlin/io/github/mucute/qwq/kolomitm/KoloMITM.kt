@@ -3,6 +3,7 @@ package io.github.mucute.qwq.kolomitm
 import io.github.mucute.qwq.kolomitm.definition.Definitions
 import io.github.mucute.qwq.kolomitm.event.receiver.*
 import io.github.mucute.qwq.kolomitm.session.KoloSession
+import io.github.mucute.qwq.kolomitm.util.PackDownloader
 import io.github.mucute.qwq.kolomitm.util.fetchAccount
 import io.github.mucute.qwq.kolomitm.util.refresh
 import io.github.mucute.qwq.kolomitm.util.saveAccount
@@ -50,7 +51,7 @@ class KoloMITM {
 
     var serverEventLoopGroup: EventLoopGroup = NioEventLoopGroup()
 
-    var clientEventLoopGroup: EventLoopGroup = serverEventLoopGroup
+    var clientEventLoopGroup: EventLoopGroup = NioEventLoopGroup()
 
     var serverChannel: Channel? = null
 
@@ -75,13 +76,16 @@ class KoloMITM {
             val koloMITM = KoloMITM()
             koloMITM.account = account
             koloMITM.localAddress = InetSocketAddress("0.0.0.0", 19132)
-            koloMITM.remoteAddress = InetSocketAddress("play.lbsg.net", 19132)
+            koloMITM.remoteAddress = InetSocketAddress("geo.hivebedrock.network", 19132)
             koloMITM.koloSession.apply {
                 proxyPassReceiver()
                 definitionReceiver()
                 transferReceiver()
                 transferCommandReceiver()
                 echoCommandReceiver()
+                packDownloaderReceiver(
+                    packDownloader = PackDownloader(Paths.get(".").resolve("packs"))
+                )
                 waigamePassword?.let { autoLoginWaiGameReceiver(it) }
             }
             koloMITM.bootServer()
