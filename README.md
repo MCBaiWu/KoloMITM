@@ -19,7 +19,7 @@ This project uses Git submodules. To clone:
 
 ```shell
 # Clone with submodules
-git clone https://github.com/mucute-qwq/KoloMITM.git --recursive
+git clone https://github.com/LibKolo/KoloMITM.git --recursive
 ```
 
 If you have cloned it without "--recursive" parameter:

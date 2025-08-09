@@ -106,8 +106,8 @@ object ForgeryUtils {
 
         val overrideData = HashMap<String, Any>()
         overrideData["PlayFabId"] = bedrockSession.playFabToken.playFabId.lowercase()
-        overrideData["DeviceId"] = UUID.randomUUID().toString()
-        overrideData["DeviceOS"] = 1 // Android per MinecraftAuth 4.0
+        overrideData["DeviceId"] = bedrockSession.mcChain.xblXsts.initialXblSession.xblDeviceToken.deviceId
+        overrideData["DeviceOS"] = 1
         overrideData["ThirdPartyName"] = bedrockSession.mcChain.displayName
         overrideData["ServerAddress"] = serverAddress.hostString + ":" + serverAddress.port
 
