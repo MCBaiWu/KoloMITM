@@ -1,5 +1,6 @@
 plugins {
     `maven-publish`
+    id("java")
     id("java-library")
     id("application")
     id("com.gradleup.shadow") version "9.0.1"
@@ -106,6 +107,7 @@ dependencies {
     api(libs.log4j.api)
     api(libs.log4j.core)
     testApi(kotlin("test"))
+
 }
 
 tasks.test {
