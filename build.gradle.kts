@@ -4,7 +4,7 @@ plugins {
     id("java-library")
     id("application")
     id("com.gradleup.shadow") version "9.0.2"
-    kotlin("jvm") version "2.2.0"
+    kotlin("jvm") version "2.2.10"
 }
 
 group = "io.github.mucute.qwq.kolomitm"
