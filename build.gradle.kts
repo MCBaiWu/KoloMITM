@@ -3,7 +3,7 @@ plugins {
     id("java")
     id("java-library")
     id("application")
-    id("com.gradleup.shadow") version "9.0.1"
+    id("com.gradleup.shadow") version "9.0.2"
     kotlin("jvm") version "2.2.0"
 }
 
