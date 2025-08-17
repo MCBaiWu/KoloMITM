@@ -17,6 +17,7 @@ import io.github.mucute.qwq.kolomitm.session.EventUnregister
 import io.github.mucute.qwq.kolomitm.session.KoloSession
 import io.github.mucute.qwq.kolomitm.util.*
 import org.cloudburstmc.nbt.NbtMap
+import org.cloudburstmc.protocol.bedrock.codec.BedrockCodecHelper
 import org.cloudburstmc.protocol.bedrock.codec.v729.serializer.InventoryContentSerializer_v729
 import org.cloudburstmc.protocol.bedrock.codec.v729.serializer.InventorySlotSerializer_v729
 import org.cloudburstmc.protocol.bedrock.data.EncodingSettings
@@ -70,7 +71,11 @@ fun KoloSession.proxyPassReceiver(
             } else {
                 koloMITM.codec
             }
-            val helper = targetCodec.createHelper().apply {
+
+            koloMITM.codecHelper = targetCodec.createHelper().apply {
+                itemDefinitions = Definitions.itemDefinitions
+                blockDefinitions = Definitions.blockDefinition
+                cameraPresetDefinitions = Definitions.cameraDefinitions
                 encodingSettings = UnlimitedEncodingSettings
             }
 
@@ -87,7 +92,7 @@ fun KoloSession.proxyPassReceiver(
             }
 
             koloMITM.codec = targetCodec.toBuilder()
-                .helper { helper }
+                .helper { koloMITM.codecHelper }
                 .also {
                     if (patchCodec && protocolVersion > 729) {
                         it.updateSerializer(
@@ -253,6 +258,7 @@ fun KoloSession.definitionReceiver(
                     .add(SimpleItemDefinition("minecraft:empty", 0, false))
                     .build()
 
+                koloMITM.codecHelper?.itemDefinitions = Definitions.itemDefinitions
                 outboundSession?.peer?.codecHelper?.itemDefinitions = Definitions.itemDefinitions
                 inboundSession?.peer?.codecHelper?.itemDefinitions = Definitions.itemDefinitions
             }
@@ -263,6 +269,7 @@ fun KoloSession.definitionReceiver(
                 Definitions.blockDefinition
             }
 
+            koloMITM.codecHelper?.blockDefinitions = blockDefinitions
             outboundSession?.peer?.codecHelper?.blockDefinitions = blockDefinitions
             inboundSession?.peer?.codecHelper?.blockDefinitions = blockDefinitions
 
@@ -296,6 +303,7 @@ fun KoloSession.definitionReceiver(
 
                 Definitions.itemDefinitions = builder.build()
 
+                koloMITM.codecHelper?.itemDefinitions = Definitions.itemDefinitions
                 outboundSession?.peer?.codecHelper?.itemDefinitions = Definitions.itemDefinitions
                 inboundSession?.peer?.codecHelper?.itemDefinitions = Definitions.itemDefinitions
             }
@@ -309,6 +317,10 @@ fun KoloSession.definitionReceiver(
                         CameraPresetDefinition.fromCameraPreset(packet.presets[it], it)
                     })
                     .build()
+
+
+
+            koloMITM.codecHelper?.cameraPresetDefinitions = Definitions.cameraDefinitions
             outboundSession?.peer?.codecHelper?.cameraPresetDefinitions = Definitions.cameraDefinitions
             inboundSession?.peer?.codecHelper?.cameraPresetDefinitions = Definitions.cameraDefinitions
         }

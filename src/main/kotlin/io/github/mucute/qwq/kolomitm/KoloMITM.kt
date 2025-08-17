@@ -20,6 +20,7 @@ import org.cloudburstmc.netty.handler.codec.raknet.server.RakServerRateLimiter
 import org.cloudburstmc.protocol.bedrock.BedrockPeer
 import org.cloudburstmc.protocol.bedrock.BedrockPong
 import org.cloudburstmc.protocol.bedrock.codec.BedrockCodec
+import org.cloudburstmc.protocol.bedrock.codec.BedrockCodecHelper
 import org.cloudburstmc.protocol.bedrock.codec.v827.Bedrock_v827
 import org.cloudburstmc.protocol.bedrock.netty.initializer.BedrockChannelInitializer
 import org.cloudburstmc.protocol.bedrock.packet.RequestNetworkSettingsPacket
@@ -32,6 +33,9 @@ class KoloMITM {
 
     var codec: BedrockCodec = Bedrock_v827.CODEC
 
+    var codecHelper: BedrockCodecHelper? = null
+        internal set
+
     var advertisement: BedrockPong = BedrockPong()
         .edition("MCPE")
         .gameType("Survival")
@@ -41,7 +45,7 @@ class KoloMITM {
         .playerCount(0)
         .maximumPlayerCount(20)
         .subMotd("A MITM cheat for Minecraft: Bedrock Edition")
-        .nintendoLimited(false);
+        .nintendoLimited(false)
 
     var account: StepFullBedrockSession.FullBedrockSession? = null
 
@@ -75,8 +79,6 @@ class KoloMITM {
             Definitions.loadBlockPalette()
             val koloMITM = KoloMITM()
             koloMITM.account = account
-            koloMITM.localAddress = InetSocketAddress("0.0.0.0", 19132)
-            koloMITM.remoteAddress = InetSocketAddress("geo.hivebedrock.network", 19132)
             koloMITM.koloSession.apply {
                 proxyPassReceiver()
                 definitionReceiver()
@@ -126,6 +128,8 @@ class KoloMITM {
             .group(clientEventLoopGroup)
             .channelFactory(RakChannelFactory.client(NioDatagramChannel::class.java))
             .option(RakChannelOption.RAK_PROTOCOL_VERSION, codec.raknetProtocolVersion)
+            .option(RakChannelOption.RAK_COMPATIBILITY_MODE, true)
+            .option(RakChannelOption.RAK_MTU_SIZES, arrayOf(1492, 1200, 576))
             .option(RakChannelOption.RAK_GUID, clientGUID)
             .option(RakChannelOption.RAK_REMOTE_GUID, clientGUID)
             .handler(object : BedrockChannelInitializer<KoloSession.OutboundSession>() {
