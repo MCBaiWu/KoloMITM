@@ -17,7 +17,6 @@ import io.github.mucute.qwq.kolomitm.session.EventUnregister
 import io.github.mucute.qwq.kolomitm.session.KoloSession
 import io.github.mucute.qwq.kolomitm.util.*
 import org.cloudburstmc.nbt.NbtMap
-import org.cloudburstmc.protocol.bedrock.codec.BedrockCodecHelper
 import org.cloudburstmc.protocol.bedrock.codec.v729.serializer.InventoryContentSerializer_v729
 import org.cloudburstmc.protocol.bedrock.codec.v729.serializer.InventorySlotSerializer_v729
 import org.cloudburstmc.protocol.bedrock.data.EncodingSettings

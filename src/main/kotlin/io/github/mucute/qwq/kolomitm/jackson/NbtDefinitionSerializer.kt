@@ -8,7 +8,7 @@ import org.cloudburstmc.nbt.NBTOutputStream
 import org.cloudburstmc.nbt.util.stream.LittleEndianDataOutputStream
 import java.io.ByteArrayOutputStream
 import java.io.IOException
-import java.util.Base64
+import java.util.*
 
 
 class NbtDefinitionSerializer : StdSerializer<NbtBlockDefinition>(NbtBlockDefinition::class.java) {
